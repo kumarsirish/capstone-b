@@ -1,0 +1,86 @@
+originals/
+adk_web_agents/
+
+# -------------------------
+# Python cache & bytecode
+# -------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# -------------------------
+# Virtual environments
+# -------------------------
+venv/
+.env/
+.venv/
+env/
+python_env/
+*/venv/
+*/.venv/
+
+# -------------------------
+# Jupyter Notebook
+# -------------------------
+.ipynb_checkpoints/
+.jupyter/
+
+# -------------------------
+# Python packaging
+# -------------------------
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# -------------------------
+# Logs & temp files
+# -------------------------
+*.log
+*.tmp
+*.temp
+
+# -------------------------
+# IDE / Editor settings
+# -------------------------
+.vscode/
+.idea/
+*.swp
+
+# -------------------------
+# OS-specific junk
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# ML / Data science
+# -------------------------
+data/
+datasets/
+checkpoints/
+models/
+outputs/
+results/
+
+# If you want to ignore only embedded model folders:
+# src/models/embeddings/
+# or:
+# embeddings/
+
+# -------------------------
+# Environment & secrets
+# -------------------------
+.env
+*.env
+.env.*
+secrets.json
+config.json
+
+# -------------------------
+# Cache folders
+# -------------------------
+.cache/
+pip-wheel-metadata/
+
