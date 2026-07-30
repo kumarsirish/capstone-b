@@ -339,10 +339,49 @@ def score_severity(
         Spondylosis (neck pain, balance trouble) -> WAIT in this dataset.
     """
     symptoms = symptoms or extract_symptoms(patient_input)
-    # FILL IN: implement the rules above.
-    # Use _normalise() to lowercase the text before checking.
-    # Look at the SYMPTOM_KEYWORDS and EMERGENCY_RED_FLAGS constants for vocabulary.
-    raise NotImplementedError("Implement score_severity() -- data_understanding_and_baseline.ipynb task")
+    text = _normalise(patient_input)
+
+    def has(keyword: str) -> bool:
+        return keyword in text
+
+    # 5 = ER -- emergency red flags
+    if has("chest pain") and (has("breathlessness") or has("difficulty breathing") or has("sweating")):
+        return {"severity": 5, "reason": "Chest pain with breathlessness/sweating is an emergency cardiac or respiratory pattern."}
+    if has("altered sensorium"):
+        return {"severity": 5, "reason": "Altered sensorium is an emergency neurological red flag."}
+    if has("fainting"):
+        return {"severity": 5, "reason": "Fainting/loss of consciousness is an emergency red flag."}
+    if has("severe bleeding"):
+        return {"severity": 5, "reason": "Severe bleeding is an emergency red flag."}
+    if has("weakness of one body side"):
+        return {"severity": 5, "reason": "One-sided weakness suggests a possible stroke -- emergency red flag."}
+
+    # 4 = DOCTOR today -- systemic or specialist signals
+    if has("fever") and has("stiff neck"):
+        return {"severity": 4, "reason": "Fever with stiff neck needs same-day clinical review."}
+    if has("burning micturition") or has("foul smell of urine") or has("bladder discomfort"):
+        return {"severity": 4, "reason": "Urinary symptoms need same-day clinical review."}
+    if has("irregular sugar level") or has("enlarged thyroid"):
+        return {"severity": 4, "reason": "Endocrine signals need same-day clinical review."}
+    if has("weight loss") and (has("sweating") or has("diarrhoea") or has("diarrhea")):
+        return {"severity": 4, "reason": "Weight loss with systemic symptoms needs same-day clinical review."}
+
+    # 3 = DOCTOR maybe -- fever plus a systemic companion symptom, no red flags
+    companion_keywords = ["vomiting", "abdominal pain", "stomach pain", "headache",
+                           "diarrhoea", "diarrhea", "dehydration"]
+    has_companion = any(has(kw) for kw in companion_keywords)
+    if has("fever") and has_companion:
+        return {"severity": 3, "reason": "Fever with an accompanying systemic symptom needs a clarifying question before deciding."}
+    if has("fever"):
+        return {"severity": 3, "reason": "Fever alone needs a clarifying question before deciding."}
+
+    # 2 = WAIT -- non-emergency symptoms without red flags, incl. pain that is not urgency
+    wait_keywords = ["rash", "itching", "joint pain", "cough", "muscle pain"] + companion_keywords
+    if any(has(kw) for kw in wait_keywords):
+        return {"severity": 2, "reason": "Non-emergency symptoms without red flags can be monitored at home."}
+
+    # 1 = WAIT -- nothing alarming found
+    return {"severity": 1, "reason": "No alarming symptoms found."}
 
 
 def decide_triage(
@@ -371,7 +410,24 @@ def decide_triage(
         -> escalation_floor(2, answer) -> "DOCTOR"   (breathing = soft flag at sev 2)
         -> take the higher -> final = DOCTOR
     """
-    raise NotImplementedError("Implement decide_triage() -- data_understanding_and_baseline.ipynb task")
+    severity = int(severity_json["severity"])
+    answer = followup.get("answer") if followup else None
+
+    if severity == 5:
+        triage_level, rule_applied = "ER", "severity 5 -> ER"
+    elif severity == 4:
+        triage_level, rule_applied = "DOCTOR", "severity 4 -> DOCTOR"
+    elif severity == 3:
+        triage_level, rule_applied = "DOCTOR", "severity 3 -> DOCTOR"
+    else:
+        triage_level, rule_applied = "WAIT", f"severity {severity} -> WAIT"
+
+    floor = escalation_floor(severity, answer)
+    if floor is not None and _label_score(floor) > _label_score(triage_level):
+        rule_applied = f"{rule_applied}, escalated to {floor} by escalation_floor guardrail on follow-up answer"
+        triage_level = floor
+
+    return {"triage_level": triage_level, "rule_applied": rule_applied}
 
 
 def run_policy_triage(
@@ -400,7 +456,24 @@ def run_policy_triage(
         6. format_patient_response(triage_decision, severity_json, symptoms)
         7. ensure_disclaimer(final_response)  -- GIVE function, enforces the disclaimer
     """
-    raise NotImplementedError("Implement run_policy_triage() -- data_understanding_and_baseline.ipynb task")
+    symptoms = extract_symptoms(patient_input)
+    severity_json = score_severity(patient_input, symptoms, vitals)
+    followup = make_followup_question(symptoms, severity_json)
+    if followup_answer is not None:
+        followup["answer"] = followup_answer
+    triage_decision = decide_triage(severity_json, followup)
+    final_response = format_patient_response(triage_decision, severity_json, symptoms)
+    final_response, _ = ensure_disclaimer(final_response)
+
+    return {
+        "patient_input":    patient_input,
+        "symptoms":         symptoms,
+        "severity_json":    severity_json,
+        "followup":         followup,
+        "triage_decision":  triage_decision,
+        "predicted_triage": triage_decision["triage_level"],
+        "final_response":   final_response,
+    }
 
 
 # -----------------------------------------------------------------------------
