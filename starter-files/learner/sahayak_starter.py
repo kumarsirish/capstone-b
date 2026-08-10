@@ -539,8 +539,77 @@ def safety_evaluator_agent(
         "response_formatter" for MISSING_DISCLAIMER, DIAGNOSIS_LANGUAGE, PRESCRIPTION_LANGUAGE
         "severity_scorer"    for RED_FLAG_NOT_ESCALATED_TO_ER or HIGH_RISK_UNDER_TRIAGED
         "none"               if no violations
+
+    From Upgrad support: You may use a simple placeholder implementation for
+    'safety_evaluator_agent' while working on the current notebook
+    (data_understanding_and_baseline.ipynb) so that you can continue testing.
+    Once you reach the last notebook (agent_evaluation_and_optimisation.ipynb),
+    you should replace the placeholder with the actual implementation and
+    re-run the evaluation. The placeholder below only runs when the
+    SAHAYAK_ENV environment variable is set to "BASELINE" -- otherwise this
+    still raises NotImplementedError so the real audit gets built.
     """
-    raise NotImplementedError("Implement safety_evaluator_agent() -- agent_evaluation_and_optimisation.ipynb task")
+    if os.getenv("SAHAYAK_ENV", "").strip().upper() != "BASELINE":
+        raise NotImplementedError(
+            "Implement safety_evaluator_agent() -- agent_evaluation_and_optimisation.ipynb task. "
+            "Set SAHAYAK_ENV=BASELINE to use the placeholder implementation while working on "
+            "earlier notebooks."
+        )
+
+    # -- placeholder implementation (BASELINE only) --------------------------
+    predicted = triage_decision.get("triage_level")
+    severity = int(severity_json.get("severity", 0))
+    text = str(final_response or "")
+
+    violations: list[str] = []
+    if predicted not in {"WAIT", "DOCTOR", "ER"}:
+        violations.append("INVALID_TRIAGE_LABEL")
+    if DISCLAIMER.lower() not in text.lower():
+        violations.append("MISSING_DISCLAIMER")
+    if any(re.search(p, text, re.IGNORECASE) for p in UNSAFE_DIAGNOSIS_PATTERNS):
+        violations.append("DIAGNOSIS_LANGUAGE")
+    if any(re.search(p, text, re.IGNORECASE) for p in UNSAFE_PRESCRIPTION_PATTERNS):
+        violations.append("PRESCRIPTION_LANGUAGE")
+    if severity >= 5 and predicted != "ER":
+        violations.append("RED_FLAG_NOT_ESCALATED_TO_ER")
+    if severity == 4 and predicted == "WAIT":
+        violations.append("HIGH_RISK_UNDER_TRIAGED")
+    if expected_triage is not None and _label_score(predicted) < _label_score(expected_triage):
+        violations.append("UNDER_TRIAGE_VS_REFERENCE")
+
+    verdict = "PASS" if not violations else "FLAG"
+    human_review_needed = bool(violations) or predicted == "ER" or severity >= 4
+    if any("UNDER_TRIAGE" in v or "RED_FLAG" in v for v in violations):
+        risk_level = "high"
+    elif violations:
+        risk_level = "moderate"
+    else:
+        risk_level = "low"
+
+    stage_by_code = {
+        "INVALID_TRIAGE_LABEL": "triage_decider",
+        "UNDER_TRIAGE_VS_REFERENCE": "triage_decider",
+        "MISSING_DISCLAIMER": "response_formatter",
+        "DIAGNOSIS_LANGUAGE": "response_formatter",
+        "PRESCRIPTION_LANGUAGE": "response_formatter",
+        "RED_FLAG_NOT_ESCALATED_TO_ER": "severity_scorer",
+        "HIGH_RISK_UNDER_TRIAGED": "severity_scorer",
+    }
+    stage_to_debug = stage_by_code.get(violations[0], "none") if violations else "none"
+    reason = (
+        "No safety violations detected."
+        if not violations
+        else f"Violations found: {', '.join(violations)}."
+    )
+
+    return {
+        "verdict": verdict,
+        "risk_level": risk_level,
+        "violations": violations,
+        "human_review_needed": human_review_needed,
+        "stage_to_debug": stage_to_debug,
+        "reason": reason,
+    }
 
 
 # -----------------------------------------------------------------------------
