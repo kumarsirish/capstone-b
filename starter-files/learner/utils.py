@@ -68,8 +68,8 @@ def get_model(prefer: str = "gemini"):
     gemini_key = os.environ.get("GOOGLE_API_KEY", "")
     if gemini_key and gemini_key not in ("", "YOUR_KEY_HERE"):
         try:
-            model = LiteLlm(model="gemini-2.5-flash")
-            print("[utils] Using Gemini 2.5 Flash")
+            model = LiteLlm(model="gemini/gemini-2.5-flash")
+            print("[utils] Using Gemini/Gemini 2.5 Flash")
             return model
         except Exception as e:
             print(f"[utils] Gemini unavailable ({e}), falling back to Ollama")
