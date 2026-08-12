@@ -445,6 +445,7 @@ def run_policy_triage(
             "triage_decision":   dict,            # output of decide_triage()
             "predicted_triage":  str,             # "WAIT", "DOCTOR", or "ER"
             "final_response":    str,             # the text shown to the ASHA worker
+            "safety_audit":      dict,            # output of safety_evaluator_agent()
         }
 
     Pipeline order (call these in sequence):
@@ -455,6 +456,7 @@ def run_policy_triage(
         5. decide_triage(severity_json, followup)
         6. format_patient_response(triage_decision, severity_json, symptoms)
         7. ensure_disclaimer(final_response)  -- GIVE function, enforces the disclaimer
+        8. safety_evaluator_agent(...)  -- self-audit; no ground truth, so expected_triage=None
     """
     symptoms = extract_symptoms(patient_input)
     severity_json = score_severity(patient_input, symptoms, vitals)
@@ -464,6 +466,13 @@ def run_policy_triage(
     triage_decision = decide_triage(severity_json, followup)
     final_response = format_patient_response(triage_decision, severity_json, symptoms)
     final_response, _ = ensure_disclaimer(final_response)
+    safety_audit = safety_evaluator_agent(
+        patient_input=patient_input,
+        symptoms=symptoms,
+        severity_json=severity_json,
+        triage_decision=triage_decision,
+        final_response=final_response,
+    )
 
     return {
         "patient_input":    patient_input,
@@ -473,6 +482,7 @@ def run_policy_triage(
         "triage_decision":  triage_decision,
         "predicted_triage": triage_decision["triage_level"],
         "final_response":   final_response,
+        "safety_audit":     safety_audit,
     }
 
 
