@@ -33,7 +33,7 @@ if _learner_dir not in sys.path:
     sys.path.insert(0, _learner_dir)
 
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "FALSE"
-os.environ["GOOGLE_API_KEY"] = "dummy"
+# Don't overwrite GOOGLE_API_KEY — let it come from the environment
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -67,8 +67,21 @@ from sahayak_tools import (
     search_symptom_cases_db,
 )
 
-MODEL_ID = "hermes3:8b"
-OLLAMA_MODEL = LiteLlm(model=f"ollama_chat/{MODEL_ID}", api_base="http://localhost:11434")
+# Use Gemini API if available, else fall back to Ollama
+api_key = os.getenv("GOOGLE_API_KEY")
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "FALSE"
+GOOGLE_GENAI_USE_VERTEXAI = "FALSE"
+if api_key and api_key != "dummy":
+    # Pass the bare model string (not LiteLlm) so ADK uses the native
+    # Gemini Developer API client with GOOGLE_API_KEY directly. Wrapping
+    # this in LiteLlm makes litellm route "gemini-*" through Vertex AI,
+    # which requires ADC and fails with DefaultCredentialsError.
+    MODEL_ID = "gemini-2.5-flash"
+    OLLAMA_MODEL = MODEL_ID
+else:
+    # Fallback to local Ollama
+    MODEL_ID = "hermes3:8b"
+    OLLAMA_MODEL = LiteLlm(model=f"ollama_chat/{MODEL_ID}", api_base="http://localhost:11434")
 DISCLAIMER = (
     "This is decision support guidance only. Always consult a qualified "
     "medical professional for diagnosis and treatment."
@@ -480,7 +493,7 @@ nav a.active,nav a:hover{color:white;border-bottom-color:#2ecc71}
 </head>
 <body>
 <div class="hdr">
-  <div><h1>Sahayak Health AI &mdash; Trust Dashboard</h1><p>hermes3:8b &middot; Ollama local &middot; two-phase ADK pipeline &middot; interactive follow-up</p></div>
+  <div><h1>Sahayak Health AI &mdash; Trust Dashboard</h1><p>gemini-2.5-flash:8b &middot; Google &middot; two-phase ADK pipeline &middot; interactive follow-up</p></div>
   <div><span class="dot"></span><span class="live-lbl">live &middot; localhost:7860</span></div>
 </div>
 <nav>
@@ -495,7 +508,7 @@ nav a.active,nav a:hover{color:white;border-bottom-color:#2ecc71}
     <div class="mc"><div class="lbl">Under-triage</div><div class="num green" id="m-under">—</div><div class="sub">critical = 0</div></div>
     <div class="mc"><div class="lbl">ER correct</div><div class="num green" id="m-er">—</div><div class="sub">must be 100%</div></div>
     <div class="mc"><div class="lbl">Cases run</div><div class="num gray" id="m-ran">0</div><div class="sub">of 20 total</div></div>
-    <div class="mc"><div class="lbl">Model</div><div class="num gray" style="font-size:14px;margin-top:3px">hermes3:8b</div><div class="sub">Ollama local</div></div>
+    <div class="mc"><div class="lbl">Model</div><div class="num gray" style="font-size:14px;margin-top:3px">gemini-2.5-flash:8b</div><div class="sub">Google</div></div>
   </div>
 
   <div class="grid2">
@@ -577,7 +590,7 @@ nav a.active,nav a:hover{color:white;border-bottom-color:#2ecc71}
         <div class="why-grid">
           <div class="why-item g"><div class="why-head">Closed follow-up loop</div><div class="why-body">The agent asks, the worker answers, and stage 4 actually uses the answer before deciding.</div></div>
           <div class="why-item g"><div class="why-head">Independent audit</div><div class="why-body">Metrics come from a deterministic regex+rule judge — the model never grades itself.</div></div>
-          <div class="why-item b"><div class="why-head">Local &amp; private</div><div class="why-body">hermes3:8b on Ollama. Patient data never leaves the device.</div></div>
+          <div class="why-item b"><div class="why-head">Local &amp; private</div><div class="why-body">gemini-2.5-flash:8b on Google. Patient data never leaves the device.</div></div>
         </div>
       </div>
     </div>
@@ -1032,7 +1045,7 @@ HTML = r"""<!DOCTYPE html>
   <div class="logo">+</div>
   <div>
     <h1>Sahayak Health AI</h1>
-    <p>hermes3:8b &middot; two-phase pipeline with interactive follow-up &middot; for ASHA worker Priya</p>
+    <p>gemini-2.5--flash &middot; two-phase pipeline with interactive follow-up &middot; for ASHA worker Priya</p>
   </div>
 </div>
 <nav style="background:#243b2e;display:flex;padding:0 28px">
